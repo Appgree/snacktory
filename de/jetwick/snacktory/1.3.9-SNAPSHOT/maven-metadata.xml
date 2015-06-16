@@ -2,23 +2,23 @@
 <metadata modelVersion="1.1.0">
   <groupId>de.jetwick</groupId>
   <artifactId>snacktory</artifactId>
-  <version>1.3.8-SNAPSHOT</version>
+  <version>1.3.9-SNAPSHOT</version>
   <versioning>
     <snapshot>
-      <timestamp>20150607.094608</timestamp>
+      <timestamp>20150616.164352</timestamp>
       <buildNumber>1</buildNumber>
     </snapshot>
-    <lastUpdated>20150607094608</lastUpdated>
+    <lastUpdated>20150616164352</lastUpdated>
     <snapshotVersions>
       <snapshotVersion>
         <extension>jar</extension>
-        <value>1.3.8-20150607.094608-1</value>
-        <updated>20150607094608</updated>
+        <value>1.3.9-20150616.164352-1</value>
+        <updated>20150616164352</updated>
       </snapshotVersion>
       <snapshotVersion>
         <extension>pom</extension>
-        <value>1.3.8-20150607.094608-1</value>
-        <updated>20150607094608</updated>
+        <value>1.3.9-20150616.164352-1</value>
+        <updated>20150616164352</updated>
       </snapshotVersion>
     </snapshotVersions>
   </versioning>
