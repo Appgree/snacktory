@@ -61,6 +61,7 @@ public class MapEntry<K, V> implements Map.Entry<K, V>, Serializable {
             return false;
         if (getClass() != obj.getClass())
             return false;
+        @SuppressWarnings("unchecked")
         final MapEntry<K, V> other = (MapEntry<K, V>) obj;
         if (this.key != other.key && (this.key == null || !this.key.equals(other.key)))
             return false;

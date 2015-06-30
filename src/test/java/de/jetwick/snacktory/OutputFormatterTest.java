@@ -15,13 +15,13 @@
  */
 package de.jetwick.snacktory;
 
+import static org.junit.Assert.assertEquals;
+
 import java.util.Arrays;
-import java.util.List;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.junit.*;
-import static org.junit.Assert.*;
+import org.junit.Test;
 
 /**
  *

@@ -1,16 +1,23 @@
 package de.jetwick.snacktory;
 
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.apache.commons.lang3.StringUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -26,6 +33,8 @@ import org.slf4j.LoggerFactory;
  */
 public class ArticleTextExtractor {
 
+    private static final int MIN_IMAGE_PIXELS = 5000;
+    @SuppressWarnings("unused")
     private static final Logger logger = LoggerFactory.getLogger(ArticleTextExtractor.class);
     // Interessting nodes
     private static final Pattern NODES = Pattern.compile("p|div|td|h1|h2|article|section");
@@ -38,27 +47,28 @@ public class ArticleTextExtractor {
     // Most likely negative candidates
     private String negativeStr;
     private Pattern NEGATIVE;
-    private static final Pattern NEGATIVE_STYLE =
-            Pattern.compile("hidden|display: ?none|font-size: ?small");
-    private static final Set<String> IGNORED_TITLE_PARTS = new LinkedHashSet<String>() {
+    private static final Pattern NEGATIVE_STYLE = Pattern.compile("hidden|display: ?none|font-size: ?small");
+    private static final Pattern IMAGE_SIZE = Pattern.compile("[_-](\\d{1,4})[x_-](\\d{1,4})");
+    private static final Pattern CANVAS_IMAGE = Pattern.compile("data:image/|base64,");
+    @SuppressWarnings("serial")
+    private static final LinkedHashSet<String> IGNORED_TITLE_PARTS = new LinkedHashSet<String>() {
         {
             add("hacker news");
             add("facebook");
         }
     };
+
     private static final OutputFormatter DEFAULT_FORMATTER = new OutputFormatter();
     private OutputFormatter formatter = DEFAULT_FORMATTER;
+    private static final NumberFormat DECIMAL_PARSER = NumberFormat.getInstance();
 
     public ArticleTextExtractor() {
-        setUnlikely("com(bx|ment|munity)|dis(qus|cuss)|e(xtra|[-]?mail)|foot|"
-                + "header|menu|re(mark|ply)|rss|sh(are|outbox)|sponsor"
-                + "a(d|ll|gegate|rchive|ttachment)|(pag(er|ination))|popup|print|"
-                + "login|si(debar|gn|ngle)");
-        setPositive("(^(body|content|h?entry|main|page|post|text|blog|story|haupt))"
-                + "|arti(cle|kel)|instapaper_body");
+        setUnlikely("com(bx|ment|munity)|dis(qus|cuss)|e(xtra|[-]?mail)|foot|" + "header|menu|re(mark|ply)|rss|sh(are|outbox)|sponsor"
+                        + "a(d|ll|gegate|rchive|ttachment)|(pag(er|ination))|popup|print|" + "login|si(debar|gn|ngle)");
+        setPositive("(^(body|content|h?entry|main|page|post|text|blog|story|haupt|contenido))" + "|arti(cle|kel|culo)|instapaper_body");
         setNegative("nav($|igation)|user|com(ment|bx)|(^com-)|contact|"
-                + "foot|masthead|(me(dia|ta))|outbrain|promo|related|scroll|(sho(utbox|pping))|"
-                + "sidebar|sponsor|tags|tool|widget|player|disclaimer|toc|infobox|vcard");
+                        + "foot|pie|masthead|(me(dia|ta))|outbrain|promo|related|scroll|(sho(utbox|pping))|"
+                        + "sidebar|sponsor|tags|tool|widget|player|disclaimer|toc|infobox|vcard");
     }
 
     public ArticleTextExtractor setUnlikely(String unlikelyStr) {
@@ -97,8 +107,8 @@ public class ArticleTextExtractor {
     }
 
     /**
-     * @param html extracts article text from given html string. wasn't tested
-     * with improper HTML, although jSoup should be able to handle minor stuff.
+     * @param html extracts article text from given html string. wasn't tested with improper HTML, although jSoup should be able to handle minor
+     *        stuff.
      * @returns extracted article, all HTML tags stripped
      */
     public JResult extractContent(Document doc) throws Exception {
@@ -139,6 +149,7 @@ public class ArticleTextExtractor {
         // init elements
         Collection<Element> nodes = getNodes(doc);
         int maxWeight = 0;
+        res.setImageUrl(extractImageUrl(doc));
         Element bestMatchElement = null;
         for (Element entry : nodes) {
             int currentWeight = getWeight(entry);
@@ -151,14 +162,15 @@ public class ArticleTextExtractor {
         }
 
         if (bestMatchElement != null) {
-            List<ImageResult> images = new ArrayList<ImageResult>();
-            Element imgEl = determineImageSource(bestMatchElement, images);
-            if (imgEl != null) {
-                res.setImageUrl(SHelper.replaceSpaces(imgEl.attr("src")));
-                // TODO remove parent container of image if it is contained in bestMatchElement
-                // to avoid image subtitles flooding in
-
-                res.setImages(images);
+            List<ImageResult> images = new ArrayList<>();
+            int pixels = guessImageSize(res.getImageUrl());
+            if (isTooSmall(pixels) || res.getImageUrl().isEmpty()) {
+                Element imgEl = determineImageSource(bestMatchElement, images);
+                if (imgEl != null && !images.isEmpty()) {
+                    if (res.getImageUrl().isEmpty() || images.get(0).weight > pixels) {
+                        res.setImageUrl(SHelper.replaceSpaces(imgEl.attr("src")));
+                    }
+                }
             }
 
             // clean before grabbing text
@@ -167,13 +179,8 @@ public class ArticleTextExtractor {
             // this fails for short facebook post and probably tweets: text.length() > res.getDescription().length()
             if (text.length() > res.getTitle().length()) {
                 res.setText(text);
-//                print("best element:", bestMatchElement);
             }
             res.setTextList(formatter.getTextList(bestMatchElement));
-        }
-
-        if (res.getImageUrl().isEmpty()) {
-            res.setImageUrl(extractImageUrl(doc));
         }
 
         res.setRssUrl(extractRssUrl(doc));
@@ -181,6 +188,34 @@ public class ArticleTextExtractor {
         res.setFaviconUrl(extractFaviconUrl(doc));
         res.setKeywords(extractKeywords(doc));
         return res;
+    }
+
+    public boolean isTooSmall(int pixels) {
+        return pixels > 0 && pixels < MIN_IMAGE_PIXELS;
+    }
+
+    private int guessImageSize(String imageUrl) throws MalformedURLException {
+        if (imageUrl == null || imageUrl.isEmpty()) {
+            return 0;
+        }
+        URL url = new URL(imageUrl);
+        int startImage = url.getPath().lastIndexOf('/');
+        int endImage = url.getPath().lastIndexOf('.');
+        if (endImage <= startImage) {
+            return 0;
+        }
+        String imageName = url.getPath().substring(startImage, endImage);
+        if (imageName == null || imageName.isEmpty()) {
+            return 0;
+        }
+        Matcher matcher = IMAGE_SIZE.matcher(imageName);
+        if (!matcher.find()) {
+            return 0;
+        }
+        int width = Integer.parseInt(matcher.group(1));
+        int height = Integer.parseInt(matcher.group(2));
+
+        return width * height;
     }
 
     protected String extractTitle(Document doc) {
@@ -237,8 +272,7 @@ public class ArticleTextExtractor {
     }
 
     /**
-     * Tries to extract an image url from metadata if determineImageSource
-     * failed
+     * Tries to extract an image url from metadata if determineImageSource failed
      *
      * @return image url or empty str
      */
@@ -275,10 +309,8 @@ public class ArticleTextExtractor {
     }
 
     /**
-     * Weights current element. By matching it with positive candidates and
-     * weighting child nodes. Since it's impossible to predict which exactly
-     * names, ids or class names will be used in HTML, major role is played by
-     * child nodes
+     * Weights current element. By matching it with positive candidates and weighting child nodes. Since it's impossible to predict which exactly
+     * names, ids or class names will be used in HTML, major role is played by child nodes
      *
      * @param e Element to weight, along with child nodes
      */
@@ -290,14 +322,10 @@ public class ArticleTextExtractor {
     }
 
     /**
-     * Weights a child nodes of given Element. During tests some difficulties
-     * were met. For instanance, not every single document has nested paragraph
-     * tags inside of the major article tag. Sometimes people are adding one
-     * more nesting level. So, we're adding 4 points for every 100 symbols
-     * contained in tag nested inside of the current weighted element, but only
-     * 3 points for every element that's nested 2 levels deep. This way we give
-     * more chances to extract the element that has less nested levels,
-     * increasing probability of the correct extraction.
+     * Weights a child nodes of given Element. During tests some difficulties were met. For instance, not every single document has nested paragraph
+     * tags inside of the major article tag. Sometimes people are adding one more nesting level. So, we're adding 4 points for every 100 symbols
+     * contained in tag nested inside of the current weighted element, but only 3 points for every element that's nested 2 levels deep. This way we
+     * give more chances to extract the element that has less nested levels, increasing probability of the correct extraction.
      *
      * @param rootEl Element, who's child nodes will be weighted
      */
@@ -406,34 +434,40 @@ public class ArticleTextExtractor {
     }
 
     public Element determineImageSource(Element el, List<ImageResult> images) {
-        int maxWeight = 0;
+        int maxWeight = -1;
         Element maxNode = null;
         Elements els = el.select("img");
         if (els.isEmpty())
-            els = el.parent().select("img");        
-        
+            els = el.parent().select("img");
+
         double score = 1;
+        Set<ImageResult> imageSet = new HashSet<ImageResult>();
         for (Element e : els) {
             String sourceUrl = e.attr("src");
-            if (sourceUrl.isEmpty() || isAdImage(sourceUrl))
+            if (sourceUrl.isEmpty() || isAdImage(sourceUrl) || isCanvasImage(sourceUrl))
                 continue;
 
             int weight = 0;
             int height = 0;
-            try {
-                height = Integer.parseInt(e.attr("height"));
-                if (height >= 50)
-                    weight += 20;
-                else
-                    weight -= 20;
-            } catch (Exception ex) {
-            }
-
             int width = 0;
             try {
-                width = Integer.parseInt(e.attr("width"));
+                String usemap = e.attr("usemap");
+                if (!usemap.isEmpty()) {
+                    continue;
+                }
+                
+                height = DECIMAL_PARSER.parse(e.attr("height")).intValue();
+                width = DECIMAL_PARSER.parse(e.attr("width")).intValue();
+                if (height <= 50 && width <= 50) {
+                    continue;
+                }
+                if (height >= 50)
+                    weight += height/2;
+                else
+                    weight -= 20;
+
                 if (width >= 50)
-                    weight += 20;
+                    weight += width/2;
                 else
                     weight -= 20;
             } catch (Exception ex) {
@@ -456,6 +490,10 @@ public class ArticleTextExtractor {
                 }
             }
 
+            int distance = StringUtils.getLevenshteinDistance(el.absUrl("img"), sourceUrl);
+            if (distance < 100) {
+                weight += 100 - distance;
+            }
             weight = (int) (weight * score);
             if (weight > maxWeight) {
                 maxWeight = weight;
@@ -464,29 +502,35 @@ public class ArticleTextExtractor {
             }
 
             ImageResult image = new ImageResult(sourceUrl, weight, title, height, width, alt, noFollow);
-            images.add(image);
+            imageSet.add(image);
         }
 
+        if (imageSet.isEmpty()) {
+            return null;
+        }
+
+        images.addAll(imageSet);
         Collections.sort(images, new ImageComparator());
         return maxNode;
     }
 
+    private boolean isCanvasImage(String imageUrl) {
+        return CANVAS_IMAGE.matcher(imageUrl).find();
+    }
+
     /**
-     * Prepares document. Currently only stipping unlikely candidates, since
-     * from time to time they're getting more score than good ones especially in
+     * Prepares document. Currently only stipping unlikely candidates, since from time to time they're getting more score than good ones especially in
      * cases when major text is short.
      *
-     * @param doc document to prepare. Passed as reference, and changed inside
-     * of function
+     * @param doc document to prepare. Passed as reference, and changed inside of function
      */
     protected void prepareDocument(Document doc) {
-//        stripUnlikelyCandidates(doc);
+        // stripUnlikelyCandidates(doc);
         removeScriptsAndStyles(doc);
     }
 
     /**
-     * Removes unlikely candidates from HTML. Currently takes id and class name
-     * and matches them against list of patterns
+     * Removes unlikely candidates from HTML. Currently takes id and class name and matches them against list of patterns
      *
      * @param doc document to strip unlikely candidates from
      */
@@ -495,9 +539,8 @@ public class ArticleTextExtractor {
             String className = child.className().toLowerCase();
             String id = child.id().toLowerCase();
 
-            if (NEGATIVE.matcher(className).find()
-                    || NEGATIVE.matcher(id).find()) {
-//                print("REMOVE:", child);
+            if (NEGATIVE.matcher(className).find() || NEGATIVE.matcher(id).find()) {
+                // print("REMOVE:", child);
                 child.remove();
             }
         }
@@ -522,19 +565,6 @@ public class ArticleTextExtractor {
         return doc;
     }
 
-    private void print(Element child) {
-        print("", child, "");
-    }
-
-    private void print(String add, Element child) {
-        print(add, child, "");
-    }
-
-    private void print(String add1, Element child, String add2) {
-        logger.info(add1 + " " + child.nodeName() + " id=" + child.id()
-                + " class=" + child.className() + " text=" + child.text() + " " + add2);
-    }
-
     private boolean isAdImage(String imageUrl) {
         return SHelper.count(imageUrl, "ad") >= 2;
     }
@@ -544,37 +574,11 @@ public class ArticleTextExtractor {
      */
     public String removeTitleFromText(String text, String title) {
         // don't do this as its terrible to read
-//        int index1 = text.toLowerCase().indexOf(title.toLowerCase());
-//        if (index1 >= 0)
-//            text = text.substring(index1 + title.length());
-//        return text.trim();
+        // int index1 = text.toLowerCase().indexOf(title.toLowerCase());
+        // if (index1 >= 0)
+        // text = text.substring(index1 + title.length());
+        // return text.trim();
         return text;
-    }
-
-    /**
-     * based on a delimeter in the title take the longest piece or do some
-     * custom logic based on the site
-     *
-     * @param title
-     * @param delimeter
-     * @return
-     */
-    private String doTitleSplits(String title, String delimeter) {
-        String largeText = "";
-        int largetTextLen = 0;
-        String[] titlePieces = title.split(delimeter);
-
-        // take the largest split
-        for (String p : titlePieces) {
-            if (p.length() > largetTextLen) {
-                largeText = p;
-                largetTextLen = p.length();
-            }
-        }
-
-        largeText = largeText.replace("&raquo;", " ");
-        largeText = largeText.replace("»", " ");
-        return largeText.trim();
     }
 
     /**
@@ -595,9 +599,9 @@ public class ArticleTextExtractor {
 
     public String cleanTitle(String title) {
         StringBuilder res = new StringBuilder();
-//        int index = title.lastIndexOf("|");
-//        if (index > 0 && title.length() / 2 < index)
-//            title = title.substring(0, index + 1);
+        // int index = title.lastIndexOf("|");
+        // if (index > 0 && title.length() / 2 < index)
+        // title = title.substring(0, index + 1);
 
         int counter = 0;
         String[] strs = title.split("\\|");
