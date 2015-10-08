@@ -283,7 +283,7 @@ public class ArticleTextExtractor {
             imageUrl = SHelper.replaceSpaces(doc.select("head meta[name=twitter:image]").attr("content"));
             if (imageUrl.isEmpty()) {
                 // prefer link over thumbnail-meta if empty
-                imageUrl = SHelper.replaceSpaces(doc.select("link[rel=image_src]").attr("href"));
+                imageUrl = SHelper.replaceSpaces(doc.select("link[rel=image_src]").attr("abs:href"));
                 if (imageUrl.isEmpty()) {
                     imageUrl = SHelper.replaceSpaces(doc.select("head meta[name=thumbnail]").attr("content"));
                 }

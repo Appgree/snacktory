@@ -11,7 +11,7 @@ public class TestAppgreeScrapper {
         long startTime = System.currentTimeMillis();
         HtmlFetcher fetcher = new HtmlFetcher();
 
-        JResult article = fetcher.fetchAndExtract("http://kcy.me/24ihn", 10000, true);
+        JResult article = fetcher.fetchAndExtract("http://www.youtube.com", 10000, true);
 
         long elapsedTime = System.currentTimeMillis() - startTime;
         

@@ -570,9 +570,9 @@ public class ArticleTextExtractorTest {
         // Wikipedia has the advantage of also testing protocol relative URL extraction for Favicon and Images.
         JResult article = extractor.extractContent(c.streamToString(getClass().getResourceAsStream("wikipedia.html")));
         assertTrue(article.getText(), article.getText().startsWith("Therapsida is a group of the most advanced reptile-grade synapsids, and the ancestors of mammals"));
-        assertEquals("//upload.wikimedia.org/wikipedia/commons/thumb/4/42/Pristeroognathus_DB.jpg/240px-Pristeroognathus_DB.jpg",
+        assertEquals("http://upload.wikimedia.org/wikipedia/commons/thumb/4/42/Pristeroognathus_DB.jpg/240px-Pristeroognathus_DB.jpg",
                 article.getImageUrl());
-        assertEquals("//en.wikipedia.org/apple-touch-icon.png",
+        assertEquals("http://en.wikipedia.org/apple-touch-icon.png",
                 article.getFaviconUrl());
     }
 

@@ -1,25 +1,26 @@
 /*
- *  Copyright 2011 Peter Karich 
+ * Copyright 2011 Peter Karich
  * 
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a
+ * copy of the License at
  * 
- *       http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  * 
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations
+ * under the License.
  */
 package de.jetwick.snacktory;
 
 import java.io.Serializable;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Parsed result from web page containing important title, text and image.
@@ -47,8 +48,7 @@ public class JResult implements Serializable {
     private Collection<String> keywords;
     private List<ImageResult> images = null;
 
-    public JResult() {
-    }
+    public JResult() {}
 
     public String getUrl() {
         if (url == null)
@@ -118,8 +118,26 @@ public class JResult implements Serializable {
         return imageUrl;
     }
 
+
+    private String fixMissingProtocol(String imageUrl) {
+        if (StringUtils.isEmpty(imageUrl))
+            return imageUrl;
+
+        if (imageUrl.startsWith("//")) {
+            String existingUrl = this.url != null ? this.url : this.originalUrl != null ? this.originalUrl : this.canonicalUrl;
+            try {
+                URL srcUrl = new URL(existingUrl);
+                return srcUrl.getProtocol() + ":" + imageUrl;
+            } catch (MalformedURLException e) {
+                return "http:" + imageUrl;
+            }
+        }
+
+        return imageUrl;
+    }
+
     public JResult setImageUrl(String imageUrl) {
-        this.imageUrl = imageUrl;
+        this.imageUrl = fixMissingProtocol(imageUrl);
         return this;
     }
 
@@ -136,7 +154,7 @@ public class JResult implements Serializable {
     }
 
     public List<String> getTextList() {
-        if(this.textList == null)
+        if (this.textList == null)
             return new ArrayList<String>();
         return this.textList;
     }
