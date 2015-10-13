@@ -221,7 +221,7 @@ public class SHelper {
 
     public static boolean isVideo(String url) {
         return url.endsWith(".mpeg") || url.endsWith(".mpg") || url.endsWith(".avi") || url.endsWith(".mov")
-                || url.endsWith(".mpg4") || url.endsWith(".mp4") || url.endsWith(".flv") || url.endsWith(".wmv");
+                || url.endsWith(".mpg4") || url.endsWith(".mp4") || url.endsWith(".flv") || url.endsWith(".wmv") || url.endsWith(".mkv");
     }
 
     public static boolean isAudio(String url) {

@@ -331,6 +331,9 @@ public class HtmlFetcher {
             encoding = "utf-8";
         } else {
             encoding = header.getValue();
+            if (encoding == null || !encoding.startsWith("text")) {
+                throw new MalformedURLException("Not an HTML content!");
+            }
         }
         String res = null;
         try {
