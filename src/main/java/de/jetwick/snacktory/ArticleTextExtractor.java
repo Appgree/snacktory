@@ -195,7 +195,7 @@ public class ArticleTextExtractor {
     }
 
     private int guessImageSize(String imageUrl) throws MalformedURLException {
-        if (imageUrl == null || imageUrl.isEmpty()) {
+        if (imageUrl == null || imageUrl.isEmpty() || !imageUrl.contains("http")) {
             return 0;
         }
         URL url = new URL(imageUrl);
