@@ -8,11 +8,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -33,6 +36,7 @@ import org.slf4j.LoggerFactory;
  */
 public class ArticleTextExtractor {
 
+    private static final int MAX_IMAGE_FROM_BODY = 30;
     private static final int MIN_IMAGE_PIXELS = 5000;
     @SuppressWarnings("unused")
     private static final Logger logger = LoggerFactory.getLogger(ArticleTextExtractor.class);
@@ -111,37 +115,39 @@ public class ArticleTextExtractor {
      *        stuff.
      * @returns extracted article, all HTML tags stripped
      */
-    public JResult extractContent(Document doc) throws Exception {
-        return extractContent(new JResult(), doc, formatter);
+    public JResult extractContent(String url, Document doc) throws Exception {
+        return extractContent(url, new JResult(), doc, formatter);
     }
 
-    public JResult extractContent(Document doc, OutputFormatter formatter) throws Exception {
-        return extractContent(new JResult(), doc, formatter);
+    public JResult extractContent(String url, Document doc, OutputFormatter formatter) throws Exception {
+        return extractContent(url,new JResult(), doc, formatter);
     }
 
-    public JResult extractContent(String html) throws Exception {
-        return extractContent(new JResult(), html);
+    public JResult extractContent(String url, String html) throws Exception {
+        return extractContent(url, new JResult(), html);
     }
 
-    public JResult extractContent(JResult res, String html) throws Exception {
-        return extractContent(res, html, formatter);
+    public JResult extractContent(String url, JResult res, String html) throws Exception {
+        return extractContent(url, res, html, formatter);
     }
 
-    public JResult extractContent(JResult res, String html, OutputFormatter formatter) throws Exception {
+    public JResult extractContent(String url, JResult res, String html, OutputFormatter formatter) throws Exception {
         if (html.isEmpty())
             throw new IllegalArgumentException("html string is empty!?");
 
         // http://jsoup.org/cookbook/extracting-data/selector-syntax
-        return extractContent(res, Jsoup.parse(html), formatter);
+        return extractContent(url, res, Jsoup.parse(html), formatter);
     }
 
-    public JResult extractContent(JResult res, Document doc, OutputFormatter formatter) throws Exception {
+    public JResult extractContent(String url, JResult res, Document doc, OutputFormatter formatter) throws Exception {
+    	
         if (doc == null)
             throw new NullPointerException("missing document");
 
         res.setTitle(extractTitle(doc));
         res.setDescription(extractDescription(doc));
         res.setCanonicalUrl(extractCanonicalUrl(doc));
+        res.setImageUrl(extractFirstImageUrl(url, doc));
 
         // now remove the clutter
         prepareDocument(doc);
@@ -149,7 +155,7 @@ public class ArticleTextExtractor {
         // init elements
         Collection<Element> nodes = getNodes(doc);
         int maxWeight = 0;
-        res.setImageUrl(extractImageUrl(doc));
+        
         Element bestMatchElement = null;
         for (Element entry : nodes) {
             int currentWeight = getWeight(entry);
@@ -183,9 +189,19 @@ public class ArticleTextExtractor {
             res.setTextList(formatter.getTextList(bestMatchElement));
         }
 
+        List<ImageResult> imagesResultList = extractAllImages(url, doc);
+        if (!imagesResultList.isEmpty() ) {
+        		
+        		res.setImages(imagesResultList);
+        		
+            if (res.getImageUrl().isEmpty()) {
+            		res.setImageUrl(res.getImages().get(0).src);
+            }
+        }
+        
         res.setRssUrl(extractRssUrl(doc));
         res.setVideoUrl(extractVideoUrl(doc));
-        res.setFaviconUrl(extractFaviconUrl(doc));
+        res.setFaviconUrl(extractFaviconUrl(url, doc));
         res.setKeywords(extractKeywords(doc));
         return res;
     }
@@ -195,27 +211,45 @@ public class ArticleTextExtractor {
     }
 
     private int guessImageSize(String imageUrl) throws MalformedURLException {
+
         if (imageUrl == null || imageUrl.isEmpty() || !imageUrl.contains("http")) {
             return 0;
         }
+        
         URL url = new URL(imageUrl);
         int startImage = url.getPath().lastIndexOf('/');
         int endImage = url.getPath().lastIndexOf('.');
         if (endImage <= startImage) {
-            return 0;
+        		return 0;
         }
+        
         String imageName = url.getPath().substring(startImage, endImage);
         if (imageName == null || imageName.isEmpty()) {
-            return 0;
+        		return 0;
         }
+        
         Matcher matcher = IMAGE_SIZE.matcher(imageName);
         if (!matcher.find()) {
-            return 0;
+        		return 0;
         }
-        int width = Integer.parseInt(matcher.group(1));
-        int height = Integer.parseInt(matcher.group(2));
-
-        return width * height;
+        
+        Integer width = Integer.parseInt(matcher.group(1));
+        Integer height = Integer.parseInt(matcher.group(2));
+	        
+	    return width * height;
+    }
+    
+    private Integer getIntegerValueForAttr(Element e, String attr) throws MalformedURLException {
+    		 
+    		Integer result = 0;
+    		
+    		if (e.hasAttr(attr)) {
+    			try {
+    				result = Integer.parseInt(e.attr(attr).replaceAll("px", "").replaceAll(";", ""));
+    			} catch (Exception ex) { }   
+    		}
+    		 
+        return result;
     }
 
     protected String extractTitle(Document doc) {
@@ -276,7 +310,7 @@ public class ArticleTextExtractor {
      *
      * @return image url or empty str
      */
-    protected String extractImageUrl(Document doc) {
+    protected String extractFirstImageUrl(String url, Document doc) {
         // use open graph tag to get image
         String imageUrl = SHelper.replaceSpaces(doc.select("head meta[property=og:image]").attr("content"));
         if (imageUrl.isEmpty()) {
@@ -288,10 +322,147 @@ public class ArticleTextExtractor {
                     imageUrl = SHelper.replaceSpaces(doc.select("head meta[name=thumbnail]").attr("content"));
                 }
             }
+        } 
+        return parseSrcImage(url, imageUrl);
+    }
+    
+    protected HashMap<String, Element> extractAllImageUrl(String url, Document doc) {
+    	  
+    		HashMap<String, Element> result = new HashMap<>();
+    		
+        Elements eMetaOgImage = doc.select("head meta[property=og:image]");
+        if (!eMetaOgImage.isEmpty()) {
+        		for (Element element : eMetaOgImage) {
+        			result.put(SHelper.replaceSpaces(element.attr("content")),element);
+			} 
         }
-        return imageUrl;
+        
+        Elements eMetaTwitterImage = doc.select("head meta[name=twitter:image]");
+        if (!eMetaTwitterImage.isEmpty()) {
+	    		for (Element element : eMetaTwitterImage) {
+	    			result.put(SHelper.replaceSpaces(element.attr("content")),element);
+			} 
+	    }
+        
+        Elements eMetaImgSrcImage = doc.select("link[rel=image_src]"); 
+        if (!eMetaImgSrcImage.isEmpty()) {
+	    		for (Element element : eMetaImgSrcImage) {
+	    			result.put(SHelper.replaceSpaces(element.attr("abs:href")),element);
+			} 
+	    }
+        
+        Elements eMetaThumbnailImage = doc.select("head meta[name=thumbnail]");
+        if (!eMetaThumbnailImage.isEmpty()) {
+	    		for (Element element : eMetaThumbnailImage) {
+	    			result.put(SHelper.replaceSpaces(element.attr("content")),element);
+			} 
+	    }
+        
+        Elements eImageBodyImage = doc.select("body img");
+        if (!eImageBodyImage.isEmpty()) {
+
+        		int totalImageFromBody = 1;
+        		
+	    		for (Element element : eImageBodyImage) {
+	    			
+	    			String src = SHelper.replaceSpaces(element.attr("src"));
+	    			if (element.hasAttr("data-src")) {
+	    				src = SHelper.replaceSpaces(element.attr("data-src"));
+	    			}
+	    			 
+	    			src = parseSrcImage(url, src); 
+	    			
+	    			if (totalImageFromBody >= MAX_IMAGE_FROM_BODY) {
+	    				
+	    				return result;
+	    				
+	    			} else {
+	    			
+	    				result.put(src,element);
+	    				
+	    				totalImageFromBody++;
+	    			}
+			} 
+	    }
+      
+        return result;
+    }
+    
+    private String parseSrcImage(String url, String imageSrc) {
+    	
+    		if (imageSrc.isEmpty()) {
+    			return null;
+    		}
+    		
+    		String rootDomain = null;  
+
+		try {
+			
+			URL urlParsed = new URL(url);
+			String protocol = urlParsed.getProtocol();
+	        String host = urlParsed.getHost();
+	        int port = urlParsed.getPort();
+	        
+	        rootDomain = String.format("%s://%s%s", protocol, host, "/");
+	        if (port != -1) {
+	        		rootDomain = String.format("%s://%s:%d%s", protocol, host, port, "/");
+	        }
+	        
+		} catch (MalformedURLException e) { }
+		
+		boolean externalDomain = imageSrc.startsWith("//");
+		
+		if (externalDomain) {
+			
+			imageSrc = "http:" + imageSrc;
+			
+		} else {
+		
+			if (imageSrc.indexOf("/") == 0) {
+				imageSrc = imageSrc.substring(1);
+			}
+			
+			if (imageSrc.startsWith("/.")) {
+				imageSrc = imageSrc.replaceFirst("/.", "");
+			}
+			
+			if (rootDomain != null && !rootDomain.isEmpty() && !imageSrc.contains("http")){ 
+				imageSrc = rootDomain + imageSrc + "";  
+			}  
+		}
+		
+		return imageSrc;
     }
 
+    protected List<ImageResult> extractAllImages(String url, Document doc) throws MalformedURLException {
+    	   
+        List<ImageResult> imagesResultList = new ArrayList<>();
+
+        HashMap<String, Element> imageElements = extractAllImageUrl(url, doc);    
+        Iterator<Entry<String, Element>> e = imageElements.entrySet().iterator();
+        
+        while (e.hasNext()) {
+        	
+            Map.Entry<String, Element> elementImg = (Map.Entry<String, Element>) e.next(); 
+             
+	        String src = elementImg.getKey();
+	    		Integer weight = getWeight(elementImg.getValue());
+	    		String title = null; 
+	    		String alt = null;
+	    		boolean noFollow = false;
+	    		Integer width = getIntegerValueForAttr(elementImg.getValue(), "width");
+	    		Integer height = getIntegerValueForAttr(elementImg.getValue(), "height");
+		
+	    		ImageResult ir = new ImageResult(src, weight, title, height, width, alt, noFollow);
+        
+	    		imagesResultList.add(ir);
+        } 
+         
+        Collections.sort(imagesResultList, new ImageComparator());
+        
+        return imagesResultList;
+    }
+    
     protected String extractRssUrl(Document doc) {
         return SHelper.replaceSpaces(doc.select("link[rel=alternate]").select("link[type=application/rss+xml]").attr("href"));
     }
@@ -300,12 +471,12 @@ public class ArticleTextExtractor {
         return SHelper.replaceSpaces(doc.select("head meta[property=og:video]").attr("content"));
     }
 
-    protected String extractFaviconUrl(Document doc) {
+    protected String extractFaviconUrl(String url, Document doc) {
         String faviconUrl = SHelper.replaceSpaces(doc.select("head link[rel=icon]").attr("href"));
         if (faviconUrl.isEmpty()) {
             faviconUrl = SHelper.replaceSpaces(doc.select("head link[rel^=shortcut],link[rel$=icon]").attr("href"));
         }
-        return faviconUrl;
+        return parseSrcImage(url, faviconUrl);
     }
 
     /**
