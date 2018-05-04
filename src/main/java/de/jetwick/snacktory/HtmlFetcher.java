@@ -332,6 +332,7 @@ public class HtmlFetcher {
     }
 
     public String fetchAsString(String urlAsString, int timeout, boolean includeSomeGooseOptions) throws MalformedURLException, IOException {
+    		urlAsString = urlAsString.replace("https", "http");
         CloseableHttpResponse response = createUrlConnection(urlAsString, timeout, includeSomeGooseOptions, false);
         if (response.getStatusLine().getStatusCode() > 399) {
             throw new MalformedURLException(response.getStatusLine().toString());
@@ -384,6 +385,7 @@ public class HtmlFetcher {
         int responseCode = -1;
         String newUrl = null;
         try {
+        		urlAsString= urlAsString.replace("https", "http");
             CloseableHttpResponse response = createUrlConnection(urlAsString, timeout, true, true);
             responseCode = response.getStatusLine().getStatusCode();
             if (responseCode == HttpStatus.SC_OK)
