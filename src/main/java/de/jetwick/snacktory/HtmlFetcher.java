@@ -81,8 +81,8 @@ public class HtmlFetcher {
         reader.close();
     }
 
-    private String referrer = "https://github.com/karussell/snacktory";
-    private String userAgent = "Mozilla/5.0 (compatible; Snacktory; +" + referrer + ")";
+    private String referrer = "https://app.appgree.com";
+    private String userAgent = "Mozilla/5.0 (compatible; Snacktory; " + referrer + ")";
     private String cacheControl = "max-age=0";
     private String language = "en-us";
     private String accept = "application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5";
@@ -224,82 +224,93 @@ public class HtmlFetcher {
     }
 
     public JResult fetchAndExtract(String url, int timeout, boolean resolve) throws Exception {
-        String originalUrl = url;
-        url = SHelper.removeHashbang(url);
-        String gUrl = SHelper.getUrlFromUglyGoogleRedirect(url);
-        if (gUrl != null)
-            url = gUrl;
-        else {
-            gUrl = SHelper.getUrlFromUglyFacebookRedirect(url);
-            if (gUrl != null)
-                url = gUrl;
-        }
-
-        if (resolve) {
-            // check if we can avoid resolving the URL (which hits the website!)
-            JResult res = getFromCache(url, originalUrl);
-            if (res != null)
-                return res;
-
-            String resUrl = getResolvedUrl(url, timeout);
-            if (resUrl.isEmpty()) {
-                if (logger.isDebugEnabled())
-                    logger.warn("resolved url is empty. Url is: " + url);
-
-                JResult result = new JResult();
-                if (cache != null)
-                    cache.put(url, result);
-                return result.setUrl(url);
-            }
-
-            // if resolved url is longer then use it!
-            if (resUrl != null && resUrl.trim().length() > url.length()) {
-                // this is necessary e.g. for some homebaken url resolvers which return
-                // the resolved url relative to url!
-                url = SHelper.useDomainOfFirstArg4Second(url, resUrl);
-            }
-        }
-
-        // check if we have the (resolved) URL in cache
-        JResult res = getFromCache(url, originalUrl);
-        if (res != null)
-            return res;
-
-        JResult result = new JResult();
-        // or should we use? <link rel="canonical" href="http://www.N24.de/news/newsitem_6797232.html"/>
-        result.setUrl(url);
-        result.setOriginalUrl(originalUrl);
-        result.setDate(SHelper.estimateDate(url));
-
-        // Immediately put the url into the cache as extracting content takes time.
-        if (cache != null) {
-            cache.put(originalUrl, result);
-            cache.put(url, result);
-        }
-
-        String lowerUrl = url.toLowerCase();
-        if (SHelper.isDoc(lowerUrl) || SHelper.isApp(lowerUrl) || SHelper.isPackage(lowerUrl)) {
-            // skip
-        } else if (SHelper.isVideo(lowerUrl) || SHelper.isAudio(lowerUrl)) {
-            result.setVideoUrl(url);
-        } else if (SHelper.isImage(lowerUrl)) {
-            result.setImageUrl(url);
-        } else {
-            extractor.extractContent(result, fetchAsString(url, timeout));
-            if (result.getFaviconUrl().isEmpty())
-                result.setFaviconUrl(SHelper.getDefaultFavicon(url));
-
-            // some links are relative to root and do not include the domain of the url :(
-            result.setFaviconUrl(fixUrl(url, result.getFaviconUrl()));
-            result.setImageUrl(fixUrl(url, result.getImageUrl()));
-            result.setVideoUrl(fixUrl(url, result.getVideoUrl()));
-            result.setRssUrl(fixUrl(url, result.getRssUrl()));
-        }
-        result.setText(lessText(result.getText()));
-        synchronized (result) {
-            result.notifyAll();
-        }
-        return result;
+    	
+  		JResult result = new JResult();
+    	
+  		try {
+  			
+	        String originalUrl = url;
+	        url = SHelper.removeHashbang(url);
+	        String gUrl = SHelper.getUrlFromUglyGoogleRedirect(url);
+	        if (gUrl != null)
+	            url = gUrl;
+	        else {
+	            gUrl = SHelper.getUrlFromUglyFacebookRedirect(url);
+	            if (gUrl != null)
+	                url = gUrl;
+	        }
+	
+	        if (resolve) {
+	            // check if we can avoid resolving the URL (which hits the website!)
+	            JResult res = getFromCache(url, originalUrl);
+	            if (res != null)
+	                return res;
+	
+	            String resUrl = getResolvedUrl(url, timeout);
+	            if (resUrl.isEmpty()) {
+	                if (logger.isDebugEnabled())
+	                    logger.warn("resolved url is empty. Url is: " + url);
+	
+	                result = new JResult();
+	                if (cache != null)
+	                    cache.put(url, result);
+	                return result.setUrl(url);
+	            }
+	
+	            // if resolved url is longer then use it!
+	            if (resUrl != null && resUrl.trim().length() > url.length()) {
+	                // this is necessary e.g. for some homebaken url resolvers which return
+	                // the resolved url relative to url!
+	                url = SHelper.useDomainOfFirstArg4Second(url, resUrl);
+	            }
+	        }
+	
+	        // check if we have the (resolved) URL in cache
+	        JResult res = getFromCache(url, originalUrl);
+	        if (res != null)
+	            return res;
+	
+	        result = new JResult();
+	        // or should we use? <link rel="canonical" href="http://www.N24.de/news/newsitem_6797232.html"/>
+	        result.setUrl(url);
+	        result.setOriginalUrl(originalUrl);
+	        result.setDate(SHelper.estimateDate(url));
+	
+	        // Immediately put the url into the cache as extracting content takes time.
+	        if (cache != null) {
+	            cache.put(originalUrl, result);
+	            cache.put(url, result);
+	        }
+	
+	        String lowerUrl = url.toLowerCase();
+	        if (SHelper.isDoc(lowerUrl) || SHelper.isApp(lowerUrl) || SHelper.isPackage(lowerUrl)) {
+	            // skip
+	        } else if (SHelper.isVideo(lowerUrl) || SHelper.isAudio(lowerUrl)) {
+	            result.setVideoUrl(url);
+	        } else if (SHelper.isImage(lowerUrl)) {
+	            result.setImageUrl(url);
+	        } else {
+	            extractor.extractContent(url, result, fetchAsString(url, timeout));
+	            if (result.getFaviconUrl().isEmpty())
+	                result.setFaviconUrl(SHelper.getDefaultFavicon(url));
+	
+	            // some links are relative to root and do not include the domain of the url :(
+	            result.setFaviconUrl(fixUrl(url, result.getFaviconUrl()));
+	            result.setImageUrl(fixUrl(url, result.getImageUrl()));
+	            result.setVideoUrl(fixUrl(url, result.getVideoUrl()));
+	            result.setRssUrl(fixUrl(url, result.getRssUrl()));
+	        }
+	        result.setText(lessText(result.getText()));
+	        synchronized (result) {
+	            result.notifyAll();
+	        }
+	        
+	        return result;
+	        
+		} catch (Exception e) {
+			
+			return result;
+		}
     }
 
     public String lessText(String text) {
@@ -321,6 +332,7 @@ public class HtmlFetcher {
     }
 
     public String fetchAsString(String urlAsString, int timeout, boolean includeSomeGooseOptions) throws MalformedURLException, IOException {
+    		urlAsString = urlAsString.replace("https", "http");
         CloseableHttpResponse response = createUrlConnection(urlAsString, timeout, includeSomeGooseOptions, false);
         if (response.getStatusLine().getStatusCode() > 399) {
             throw new MalformedURLException(response.getStatusLine().toString());
@@ -373,6 +385,7 @@ public class HtmlFetcher {
         int responseCode = -1;
         String newUrl = null;
         try {
+        		urlAsString= urlAsString.replace("https", "http");
             CloseableHttpResponse response = createUrlConnection(urlAsString, timeout, true, true);
             responseCode = response.getStatusLine().getStatusCode();
             if (responseCode == HttpStatus.SC_OK)
