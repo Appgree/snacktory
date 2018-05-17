@@ -1,17 +1,11 @@
 /*
- *  Copyright 2011 Peter Karich 
+ * Copyright 2011 Peter Karich
  * 
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at
  * 
- *       http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  * 
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
  */
 package de.jetwick.snacktory;
 
@@ -32,6 +26,7 @@ import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
+
 import org.jsoup.nodes.Element;
 
 /**
@@ -75,7 +70,7 @@ public class SHelper {
         boolean previousSpace = false;
         for (int i = 0; i < str.length(); i++) {
             char c = str.charAt(i);
-            if (c == ' ' || (int) c == 9 || c == '\n') {
+            if (c == ' ' || c == 9 || c == '\n') {
                 previousSpace = true;
                 continue;
             }
@@ -90,8 +85,7 @@ public class SHelper {
     }
 
     /**
-     * Starts reading the encoding from the first valid character until an
-     * invalid encoding character occurs.
+     * Starts reading the encoding from the first valid character until an invalid encoding character occurs.
      */
     public static String encodingCleanup(String str) {
         StringBuilder sb = new StringBuilder();
@@ -150,7 +144,7 @@ public class SHelper {
                 }
             }
         }
-        return new int[]{lastSubstrBegin, endIndex};
+        return new int[] {lastSubstrBegin, endIndex};
     }
 
     public static String getDefaultFavicon(String url) {
@@ -215,13 +209,11 @@ public class SHelper {
 
     public static boolean isVideoLink(String url) {
         url = extractDomain(url, true);
-        return url.startsWith("youtube.com") || url.startsWith("video.yahoo.com")
-                || url.startsWith("vimeo.com") || url.startsWith("blip.tv");
+        return url.startsWith("youtube.com") || url.startsWith("video.yahoo.com") || url.startsWith("vimeo.com") || url.startsWith("blip.tv");
     }
 
     public static boolean isVideo(String url) {
-        return url.endsWith(".mpeg") || url.endsWith(".mpg") || url.endsWith(".avi") || url.endsWith(".mov")
-                || url.endsWith(".mpg4") || url.endsWith(".mp4") || url.endsWith(".flv") || url.endsWith(".wmv") || url.endsWith(".mkv");
+        return url.endsWith(".mpeg") || url.endsWith(".mpg") || url.endsWith(".avi") || url.endsWith(".mov") || url.endsWith(".mpg4") || url.endsWith(".mp4") || url.endsWith(".flv") || url.endsWith(".wmv") || url.endsWith(".mkv");
     }
 
     public static boolean isAudio(String url) {
@@ -229,13 +221,11 @@ public class SHelper {
     }
 
     public static boolean isDoc(String url) {
-        return url.endsWith(".pdf") || url.endsWith(".ppt") || url.endsWith(".doc")
-                || url.endsWith(".swf") || url.endsWith(".rtf") || url.endsWith(".xls");
+        return url.endsWith(".pdf") || url.endsWith(".ppt") || url.endsWith(".doc") || url.endsWith(".swf") || url.endsWith(".rtf") || url.endsWith(".xls");
     }
 
     public static boolean isPackage(String url) {
-        return url.endsWith(".gz") || url.endsWith(".tgz") || url.endsWith(".zip")
-                || url.endsWith(".rar") || url.endsWith(".deb") || url.endsWith(".rpm") || url.endsWith(".7z");
+        return url.endsWith(".gz") || url.endsWith(".tgz") || url.endsWith(".zip") || url.endsWith(".rar") || url.endsWith(".deb") || url.endsWith(".rpm") || url.endsWith(".7z");
     }
 
     public static boolean isApp(String url) {
@@ -243,13 +233,11 @@ public class SHelper {
     }
 
     public static boolean isImage(String url) {
-        return url.endsWith(".png") || url.endsWith(".jpeg") || url.endsWith(".gif")
-                || url.endsWith(".jpg") || url.endsWith(".bmp") || url.endsWith(".ico") || url.endsWith(".eps");
+        return url.endsWith(".png") || url.endsWith(".jpeg") || url.endsWith(".gif") || url.endsWith(".jpg") || url.endsWith(".bmp") || url.endsWith(".ico") || url.endsWith(".eps");
     }
 
     /**
-     * @see
-     * http://blogs.sun.com/CoreJavaTechTips/entry/cookie_handling_in_java_se
+     * @see http://blogs.sun.com/CoreJavaTechTips/entry/cookie_handling_in_java_se
      */
     public static void enableCookieMgmt() {
         CookieManager manager = new CookieManager();
@@ -258,16 +246,16 @@ public class SHelper {
     }
 
     /**
-     * @see
-     * http://stackoverflow.com/questions/2529682/setting-user-agent-of-a-java-urlconnection
+     * @see http://stackoverflow.com/questions/2529682/setting-user-agent-of-a-java-urlconnection
      */
     public static void enableUserAgentOverwrite() {
         System.setProperty("http.agent", "");
     }
 
     public static String getUrlFromUglyGoogleRedirect(String url) {
-        if (url.startsWith("http://www.google.com/url?")) {
-            url = url.substring("http://www.google.com/url?".length());
+        String regexPattern = "^(http|https)://www.google.com[/]+url\\?q=(.*)$";
+        if (url.matches(regexPattern)) {
+            url = url.substring(url.indexOf("?") + 1);
             String arr[] = urlDecode(url).split("\\&");
             if (arr != null)
                 for (String str : arr) {
@@ -305,8 +293,7 @@ public class SHelper {
     }
 
     /**
-     * Popular sites uses the #! to indicate the importance of the following
-     * chars. Ugly but true. Such as: facebook, twitter, gizmodo, ...
+     * Popular sites uses the #! to indicate the importance of the following chars. Ugly but true. Such as: facebook, twitter, gizmodo, ...
      */
     public static String removeHashbang(String url) {
         return url.replaceFirst("#!", "");
@@ -371,8 +358,7 @@ public class SHelper {
                 } else if (counter == monthCounter + 1) {
                     try {
                         day = Integer.parseInt(str);
-                    } catch (Exception ex) {
-                    }
+                    } catch (Exception ex) {}
                     if (day < 1 || day > 31) {
                         day = -1;
                         continue;
@@ -420,8 +406,7 @@ public class SHelper {
     }
 
     /**
-     * keep in mind: simpleDateFormatter is not thread safe! call completeDate
-     * before applying this formatter.
+     * keep in mind: simpleDateFormatter is not thread safe! call completeDate before applying this formatter.
      */
     public static SimpleDateFormat createDateFormatter() {
         return new SimpleDateFormat("yyyy/MM/dd");
@@ -431,7 +416,7 @@ public class SHelper {
     public static void enableAnySSL() {
         try {
             SSLContext ctx = SSLContext.getInstance("TLS");
-            ctx.init(new KeyManager[0], new TrustManager[]{new DefaultTrustManager()}, new SecureRandom());
+            ctx.init(new KeyManager[0], new TrustManager[] {new DefaultTrustManager()}, new SecureRandom());
             SSLContext.setDefault(ctx);
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -441,12 +426,10 @@ public class SHelper {
     private static class DefaultTrustManager implements X509TrustManager {
 
         @Override
-        public void checkClientTrusted(X509Certificate[] arg0, String arg1) throws CertificateException {
-        }
+        public void checkClientTrusted(X509Certificate[] arg0, String arg1) throws CertificateException {}
 
         @Override
-        public void checkServerTrusted(X509Certificate[] arg0, String arg1) throws CertificateException {
-        }
+        public void checkServerTrusted(X509Certificate[] arg0, String arg1) throws CertificateException {}
 
         @Override
         public X509Certificate[] getAcceptedIssuers() {
