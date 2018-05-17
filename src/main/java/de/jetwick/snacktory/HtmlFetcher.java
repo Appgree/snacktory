@@ -223,12 +223,12 @@ public class HtmlFetcher {
         return getProxy() != null;
     }
 
-    public JResult fetchAndExtract(String url, int timeout, boolean resolve) {
+    public JResult fetchAndExtract(String url, int timeout, boolean resolve) throws Exception {
     	
-    		JResult result = new JResult();
+  		JResult result = new JResult();
     	
-	    	try {
-	    		
+  		try {
+  			
 	        String originalUrl = url;
 	        url = SHelper.removeHashbang(url);
 	        String gUrl = SHelper.getUrlFromUglyGoogleRedirect(url);
@@ -307,10 +307,10 @@ public class HtmlFetcher {
 	        
 	        return result;
 	        
-	    	} catch (Exception e) {
-	    		
-	    		return result;
-	    	}
+		} catch (Exception e) {
+			
+			return result;
+		}
     }
 
     public String lessText(String text) {

@@ -8,15 +8,16 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.List; 
+import java.util.Map; 
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
@@ -51,7 +52,7 @@ public class ArticleTextExtractor {
     private String negativeStr;
     private Pattern NEGATIVE;
     private static final Pattern NEGATIVE_STYLE = Pattern.compile("hidden|display: ?none|font-size: ?small");
-   // private static final Pattern IMAGE_SIZE = Pattern.compile("[_-](\\d{1,4})[x_-](\\d{1,4})");
+    private static final Pattern IMAGE_SIZE = Pattern.compile("[_-](\\d{1,4})[x_-](\\d{1,4})");
     private static final Pattern CANVAS_IMAGE = Pattern.compile("data:image/|base64,");
     @SuppressWarnings("serial")
     private static final LinkedHashSet<String> IGNORED_TITLE_PARTS = new LinkedHashSet<String>() {
@@ -149,19 +150,63 @@ public class ArticleTextExtractor {
         
         res.setTitle(extractTitle(doc));
         res.setDescription(extractDescription(doc));
-        res.setCanonicalUrl(extractCanonicalUrl(doc)); 
+        res.setCanonicalUrl(extractCanonicalUrl(doc));
 
+        // now remove the clutter
         prepareDocument(doc);
 
-        List<ImageResult> imagesResultList = extractAllImages(url, doc);
-        if (!imagesResultList.isEmpty() ) {
-        		
-        		ImageResult firstImage = imagesResultList.get(0); 
-        		res.setImageUrl(firstImage.src);
-        		
-        		imagesResultList.remove(firstImage); 
-        		
-        		res.setImages(imagesResultList);
+        // init elements
+        Collection<Element> nodes = getNodes(doc);
+        int maxWeight = 0;
+        res.setImageUrl(extractImageUrl(url, doc));
+        Element bestMatchElement = null;
+        for (Element entry : nodes) {
+            int currentWeight = getWeight(entry);
+            if (currentWeight > maxWeight) {
+                maxWeight = currentWeight;
+                bestMatchElement = entry;
+                if (maxWeight > 200)
+                    break;
+            }
+        }
+
+        if (bestMatchElement != null) {
+            List<ImageResult> images = new ArrayList<>();
+            int pixels = guessImageSize(res.getImageUrl());
+            if (isTooSmall(pixels) || res.getImageUrl().isEmpty()) {
+                Element imgEl = determineImageSource(bestMatchElement, images);
+                if (imgEl != null && !images.isEmpty()) {
+                    if (res.getImageUrl().isEmpty() || images.get(0).weight > pixels) {
+                        res.setImageUrl(SHelper.replaceSpaces(imgEl.attr("src")));
+                    }
+                }
+            }
+
+            // clean before grabbing text
+            String text = formatter.getFormattedText(bestMatchElement);
+            text = removeTitleFromText(text, res.getTitle());
+            // this fails for short facebook post and probably tweets: text.length() > res.getDescription().length()
+            if (text.length() > res.getTitle().length()) {
+                res.setText(text);
+            }
+            res.setTextList(formatter.getTextList(bestMatchElement));
+        }
+        
+        Map<String, ImageResult> imagesResults = extractAllImages(url, doc);
+        if (!imagesResults.isEmpty()) {
+        		 
+        		String imageUrlKey = res.getImageUrl();
+	        	if (StringUtils.isEmpty(imageUrlKey)) { 
+	        		imageUrlKey = imagesResults.keySet().iterator().next();
+	        		res.setImageUrl(imageUrlKey);
+	        	}  
+	        	imagesResults.remove(imageUrlKey);
+	        	
+	        	ArrayList<ImageResult> toOrder = new ArrayList<>(imagesResults.values());
+	        	
+	        	Collections.sort(toOrder, new ImageComparator());
+	        	
+        		res.setImages(toOrder);
         }
         
         res.setRssUrl(extractRssUrl(doc));
@@ -186,6 +231,30 @@ public class ArticleTextExtractor {
     		}
     		 
         return result;
+    }
+
+    private int guessImageSize(String imageUrl) throws MalformedURLException {
+        if (imageUrl == null || imageUrl.isEmpty() || !imageUrl.contains("http")) {
+            return 0;
+        }
+        URL url = new URL(imageUrl);
+        int startImage = url.getPath().lastIndexOf('/');
+        int endImage = url.getPath().lastIndexOf('.');
+        if (endImage <= startImage) {
+            return 0;
+        }
+        String imageName = url.getPath().substring(startImage, endImage);
+        if (imageName == null || imageName.isEmpty()) {
+            return 0;
+        }
+        Matcher matcher = IMAGE_SIZE.matcher(imageName);
+        if (!matcher.find()) {
+            return 0;
+        }
+        int width = Integer.parseInt(matcher.group(1));
+        int height = Integer.parseInt(matcher.group(2));
+
+        return width * height;
     }
 
     protected String extractTitle(Document doc) {
@@ -246,26 +315,29 @@ public class ArticleTextExtractor {
      *
      * @return image url or empty str
      */
-    protected String extractFirstImageUrl(String url, Document doc) {
+    protected String extractImageUrl(String url, Document doc) {
 
         String imageUrl = SHelper.replaceSpaces(doc.select("head meta[property=og:image]").attr("content"));
         if (imageUrl.isEmpty()) {
             imageUrl = SHelper.replaceSpaces(doc.select("head meta[name=twitter:image]").attr("content"));
-            if (imageUrl.isEmpty()) { 
-            		imageUrl = SHelper.replaceSpaces(doc.select("head meta[name=thumbnail]").attr("content"));
-            		if (imageUrl.isEmpty()) {
-            			Elements e = doc.select("link[href*=.png]");
-            			if (e != null && e.size() > 0) {
-            				imageUrl = e.first().attr("href");
-            			} else {
-            				e = doc.select("link[href*=.jpg]");
-            				if (e != null && e.size() > 0) {
-                				imageUrl = e.first().attr("href");
-                			}
-            			}
-            		}
+            if (imageUrl.isEmpty()) {
+                imageUrl = SHelper.replaceSpaces(doc.select("link[rel=image_src]").attr("abs:href"));
+                if (imageUrl.isEmpty()) {
+                    imageUrl = SHelper.replaceSpaces(doc.select("head meta[name=thumbnail]").attr("content"));
+                    if (imageUrl.isEmpty()) {
+	            			Elements e = doc.select("link[href*=.png]");
+	            			if (e != null && e.size() > 0) {
+	            				imageUrl = e.first().attr("href");
+	            			} else {
+	            				e = doc.select("link[href*=.jpg]");
+	            				if (e != null && e.size() > 0) {
+	                				imageUrl = e.first().attr("href");
+	                			}
+	            			}
+	            		}
+                }
             }
-        } 
+        }
         
         return parseSrcImage(url, imageUrl);
     }
@@ -381,21 +453,64 @@ public class ArticleTextExtractor {
         return result;
     }
     
+    protected Map<String, ImageResult> extractAllImages(String url, Document doc) throws MalformedURLException {
+    	   
+        Map<String, ImageResult> imagesResultList = new HashMap<>();
+
+        HashMap<String, Element> imageElements = extractAllImageUrl(url, doc);    
+        Iterator<Entry<String, Element>> e = imageElements.entrySet().iterator();
+        
+        while (e.hasNext()) {
+        	
+            Map.Entry<String, Element> elementImg = (Map.Entry<String, Element>) e.next(); 
+             
+	        String src = elementImg.getKey();
+	    		Integer weight = getWeight(elementImg.getValue());
+	    		String title = null; 
+	    		String alt = null;
+	    		boolean noFollow = false;
+	    		Integer width = getIntegerValueForAttr(elementImg.getValue(), "width");
+	    		Integer height = getIntegerValueForAttr(elementImg.getValue(), "height");
+		
+	    		ImageResult ir = new ImageResult(src, weight, title, height, width, alt, noFollow);
+        
+	    		imagesResultList.put(ir.src, ir);
+        }
+        
+        return imagesResultList;
+    }
+    
+    protected String extractRssUrl(Document doc) {
+        return SHelper.replaceSpaces(doc.select("link[rel=alternate]").select("link[type=application/rss+xml]").attr("href"));
+    }
+
+    protected String extractVideoUrl(Document doc) {
+        return SHelper.replaceSpaces(doc.select("head meta[property=og:video]").attr("content"));
+    }
+
+    protected String extractFaviconUrl(String url, Document doc) {
+        String faviconUrl = SHelper.replaceSpaces(doc.select("head link[rel=icon]").attr("href"));
+        if (faviconUrl.isEmpty()) {
+            faviconUrl = SHelper.replaceSpaces(doc.select("head link[rel^=shortcut],link[rel$=icon]").attr("href"));
+        }
+        return parseSrcImage(url, faviconUrl);
+    }
+
     private String parseSrcImage(String url, String imageSrc) {
     	
-    		if (imageSrc.isEmpty()) {
-    			return null;
-    		}
-    		
-    		if (imageSrc.contains("?")) {
-    			imageSrc = imageSrc.substring(0, imageSrc.indexOf("?"));
-    		}
-    		
-    		if (imageSrc.startsWith("http")) {
-    			return imageSrc;
-    		}
-    		
-    		String rootDomain = null;  
+		if (imageSrc.isEmpty()) {
+			return null;
+		}
+		
+		if (imageSrc.contains("?")) {
+			imageSrc = imageSrc.substring(0, imageSrc.indexOf("?"));
+		}
+		
+		if (imageSrc.startsWith("http")) {
+			return imageSrc;
+		}
+		
+		String rootDomain = null;  
 
 		try {
 			
@@ -441,53 +556,8 @@ public class ArticleTextExtractor {
 		}
 		
 		return imageSrc;
-    }
-
-    protected List<ImageResult> extractAllImages(String url, Document doc) throws MalformedURLException {
-    	   
-        List<ImageResult> imagesResultList = new ArrayList<>();
-
-        HashMap<String, Element> imageElements = extractAllImageUrl(url, doc);    
-        Iterator<Entry<String, Element>> e = imageElements.entrySet().iterator();
-        
-        while (e.hasNext()) {
-        	
-            Map.Entry<String, Element> elementImg = (Map.Entry<String, Element>) e.next(); 
-             
-	        String src = elementImg.getKey();
-	    		Integer weight = getWeight(elementImg.getValue());
-	    		String title = null; 
-	    		String alt = null;
-	    		boolean noFollow = false;
-	    		Integer width = getIntegerValueForAttr(elementImg.getValue(), "width");
-	    		Integer height = getIntegerValueForAttr(elementImg.getValue(), "height");
-		
-	    		ImageResult ir = new ImageResult(src, weight, title, height, width, alt, noFollow);
-        
-	    		imagesResultList.add(ir);
-        } 
-         
-        Collections.sort(imagesResultList, new ImageComparator());
-        
-        return imagesResultList;
-    }
+	}
     
-    protected String extractRssUrl(Document doc) {
-        return SHelper.replaceSpaces(doc.select("link[rel=alternate]").select("link[type=application/rss+xml]").attr("href"));
-    }
-
-    protected String extractVideoUrl(Document doc) {
-        return SHelper.replaceSpaces(doc.select("head meta[property=og:video]").attr("content"));
-    }
-
-    protected String extractFaviconUrl(String url, Document doc) {
-        String faviconUrl = SHelper.replaceSpaces(doc.select("head link[rel=icon]").attr("href"));
-        if (faviconUrl.isEmpty()) {
-            faviconUrl = SHelper.replaceSpaces(doc.select("head link[rel^=shortcut],link[rel$=icon]").attr("href"));
-        }
-        return parseSrcImage(url, faviconUrl);
-    }
-
     /**
      * Weights current element. By matching it with positive candidates and weighting child nodes. Since it's impossible to predict which exactly
      * names, ids or class names will be used in HTML, major role is played by child nodes
@@ -614,6 +684,7 @@ public class ArticleTextExtractor {
     }
 
     public Element determineImageSource(Element el, List<ImageResult> images) {
+    	
         int maxWeight = -1;
         Element maxNode = null;
         Elements els = el.select("img");
