@@ -324,12 +324,16 @@ public class ArticleTextExtractor {
 			} 
 	    }
         
-        Elements eImageBodyImage = doc.select("body img");
-        if (!eImageBodyImage.isEmpty()) {
+        Elements eImageBodyImageJpg = doc.select("body img[src*=.jpg]");
+        Elements eImageBodyImagePng = doc.select("body img[src*=.png]");
+        Elements allElements = new Elements(eImageBodyImageJpg);
+        allElements.addAll(eImageBodyImagePng);
+        
+        if (!allElements.isEmpty()) {
 
         		int totalImageFromBody = 1;
         		
-	    		for (Element element : eImageBodyImage) {
+	    		for (Element element : allElements) {
 	    			
 	    			String src = SHelper.replaceSpaces(element.attr("src"));
 	    			if (element.hasAttr("data-src")) {

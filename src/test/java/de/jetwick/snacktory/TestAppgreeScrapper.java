@@ -14,9 +14,10 @@ public class TestAppgreeScrapper {
         // String urlToParser = "https://marca.com/";
         // String urlToParser = "https://elpais.com/";
         // String urlToParser = "https://verne.elpais.com/especial/el-camino-de-la-igualdad/";
-        String urlToParser = "https://www.google.com/url?q=http://foobar.demowheel.es/metadata.html&sa=D&source=hangouts&ust=1526639065810000&usg=AFQjCNF8I4Wa72wJSmswNZDx6FIGT9E5-Q";
+        //String urlToParser = "https://www.google.com/url?q=http://foobar.demowheel.es/metadata.html&sa=D&source=hangouts&ust=1526639065810000&usg=AFQjCNF8I4Wa72wJSmswNZDx6FIGT9E5-Q";
         // String urlToParser = "https://www.evobanco.com/cuenta-inteligente/?sem=Cuenta-Inteligente-Online-95&utm_source=google&utm_medium=sem&utm_campaign=Cuenta-Inteligente-Online&utm_content=marca&gclid=EAIaIQobChMI8czx4fTr2gIVSYGyCh3Z5AFHEAAYASAAEgISivD_BwE"; // www.tesla.com
         // String urlToParser = "https://www.evobanco.com/cuenta-inteligente/"; // www.tesla.com
+        String urlToParser = "http://foobar.demowheel.es/metadata.html";
 
         JResult article = fetcher.fetchAndExtract(urlToParser, 10000, true);
 
