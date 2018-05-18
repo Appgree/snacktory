@@ -149,19 +149,19 @@ public class ArticleTextExtractor {
         
         res.setTitle(extractTitle(doc));
         res.setDescription(extractDescription(doc));
-        res.setCanonicalUrl(extractCanonicalUrl(doc));
-        res.setImageUrl(extractFirstImageUrl(url, doc));
+        res.setCanonicalUrl(extractCanonicalUrl(doc)); 
 
         prepareDocument(doc);
 
         List<ImageResult> imagesResultList = extractAllImages(url, doc);
         if (!imagesResultList.isEmpty() ) {
         		
-        		res.setImages(imagesResultList);
+        		ImageResult firstImage = imagesResultList.get(0); 
+        		res.setImageUrl(firstImage.src);
         		
-            if (res.getImageUrl().isEmpty()) {
-            		res.setImageUrl(res.getImages().get(0).src);
-            }
+        		imagesResultList.remove(firstImage); 
+        		
+        		res.setImages(imagesResultList);
         }
         
         res.setRssUrl(extractRssUrl(doc));
