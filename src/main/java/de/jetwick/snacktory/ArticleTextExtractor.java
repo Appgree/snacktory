@@ -278,7 +278,7 @@ public class ArticleTextExtractor {
         if (!eMetaOgImage.isEmpty()) {
         		for (Element element : eMetaOgImage) {
         			String key = parseSrcImage(url, SHelper.replaceSpaces(element.attr("content"))); 
-        			if (!StringUtils.isEmpty(key) && !result.containsKey(key)) {
+        			if (!StringUtils.isEmpty(key) && !result.containsKey(key) && (element.attr("content").contains(".jpg") || element.attr("content").contains(".png"))) {
         				result.put(key,element);
         			}
 			} 
@@ -288,7 +288,7 @@ public class ArticleTextExtractor {
         if (!eMetaTwitterImage.isEmpty()) {
 	    		for (Element element : eMetaTwitterImage) { 
 	    			String key = parseSrcImage(url, SHelper.replaceSpaces(element.attr("content"))); 
-	    			if (!StringUtils.isEmpty(key)  && !result.containsKey(key)) {
+	    			if (!StringUtils.isEmpty(key)  && !result.containsKey(key) && (element.attr("content").contains(".jpg") || element.attr("content").contains(".png"))) {
         				result.put(key,element);
         			}
 			} 
@@ -298,7 +298,17 @@ public class ArticleTextExtractor {
         if (!eMetaThumbnailImage.isEmpty()) {
 	    		for (Element element : eMetaThumbnailImage) {
 	    			String key = parseSrcImage(url, SHelper.replaceSpaces(element.attr("content"))); 
-	    			if (!StringUtils.isEmpty(key)  && !result.containsKey(key)) {
+	    			if (!StringUtils.isEmpty(key)  && !result.containsKey(key) && (element.attr("content").contains(".jpg") || element.attr("content").contains(".png"))) {
+        				result.put(key,element);
+        			}
+			} 
+	    }
+        
+        Elements eMetaItemPropImage = doc.select("meta[itemprop=url]");
+        if (!eMetaItemPropImage.isEmpty()) {
+	    		for (Element element : eMetaItemPropImage) {
+	    			String key = parseSrcImage(url, SHelper.replaceSpaces(element.attr("content"))); 
+	    			if (!StringUtils.isEmpty(key)  && !result.containsKey(key) && (element.attr("content").contains(".jpg") || element.attr("content").contains(".png"))) {
         				result.put(key,element);
         			}
 			} 
@@ -308,7 +318,7 @@ public class ArticleTextExtractor {
         if (!eMetaImgSrcImagePng.isEmpty()) {
 	    		for (Element element : eMetaImgSrcImagePng) {  
 	    			String key = parseSrcImage(url, SHelper.replaceSpaces(element.attr("href"))); 
-	    			if (!StringUtils.isEmpty(key)  && !result.containsKey(key)) {
+	    			if (!StringUtils.isEmpty(key)  && !result.containsKey(key) && (element.attr("content").contains(".jpg") || element.attr("content").contains(".png"))) {
         				result.put(key,element);
         			}
 			} 
@@ -318,7 +328,7 @@ public class ArticleTextExtractor {
         if (!eMetaImgSrcImageJpg.isEmpty()) {
 	    		for (Element element : eMetaImgSrcImageJpg) {
 	    			String key = parseSrcImage(url, SHelper.replaceSpaces(element.attr("href"))); 
-	    			if (!StringUtils.isEmpty(key)  && !result.containsKey(key)) {
+	    			if (!StringUtils.isEmpty(key)  && !result.containsKey(key) && (element.attr("content").contains(".jpg") || element.attr("content").contains(".png"))) {
         				result.put(key,element);
         			}
 			} 
@@ -326,8 +336,12 @@ public class ArticleTextExtractor {
         
         Elements eImageBodyImageJpg = doc.select("body img[src*=.jpg]");
         Elements eImageBodyImagePng = doc.select("body img[src*=.png]");
+        Elements eImageBodyImageDataSrcJpg = doc.select("body img[data-src*=.jpg]");
+        Elements eImageBodyImageDataSrcPng = doc.select("body img[data-src*=.png]");
         Elements allElements = new Elements(eImageBodyImageJpg);
         allElements.addAll(eImageBodyImagePng);
+        allElements.addAll(eImageBodyImageDataSrcJpg);
+        allElements.addAll(eImageBodyImageDataSrcPng);
         
         if (!allElements.isEmpty()) {
 
@@ -336,7 +350,10 @@ public class ArticleTextExtractor {
 	    		for (Element element : allElements) {
 	    			
 	    			String src = SHelper.replaceSpaces(element.attr("src"));
-	    			if (element.hasAttr("data-src")) {
+	    				
+	    			if ((!src.contains(".jpg") || !src.contains(".png")) &&
+	    				element.hasAttr("data-src") && 
+	    				(element.attr("data-src").contains(".jpg") || element.attr("data-src").contains(".png"))) {
 	    				src = SHelper.replaceSpaces(element.attr("data-src"));
 	    			}
 	    			
